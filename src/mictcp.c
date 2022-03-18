@@ -6,6 +6,9 @@ mic_tcp_sock sock_puit;
 mic_tcp_sock_addr addr_dest;
 
 mic_tcp_pdu pdu;
+short PE = 0;
+short PA =0;
+
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
  * Retourne le descripteur du socket ou bien -1 en cas d'erreur
@@ -14,14 +17,13 @@ int mic_tcp_socket(start_mode sm)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     int result = initialize_components(sm);
+    set_loss_rate(0);
     if(sm == CLIENT)
     {
-        set_loss_rate(0);
         sock_source.fd = result;
     }
     else
     {
-        set_loss_rate(0);
         sock_puit.fd = result;
     }
     return result;
@@ -77,13 +79,28 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+    mic_tcp_pdu newPDU;
+    int valide = -1;
+    int test;
     if(mic_sock != sock_source.fd){
         return(-1);
     }
     else{
+        pdu.header.seq_num = PE;
         pdu.payload.data = mesg;
         pdu.payload.size = mesg_size;
-        return(IP_send(pdu,addr_dest));
+        PE=(PE+1)%2;
+        while(valide){
+            IP_send(pdu,addr_dest);
+            test = IP_recv(&newPDU,&addr_dest,500);
+            if(test != -1)
+            {
+                if(newPDU.header.ack_num == PE){
+                    valide = 0;
+                }
+            }
+        }
+        return(0);
     }
 }
 
@@ -93,7 +110,7 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
  * Retourne le nombre d’octets lu ou bien -1 en cas d’erreur
  * NB : cette fonction fait appel à la fonction app_buffer_get()
  */
-int mic_tcp_recv (int socket, char* mesg, int max_mesg_size)
+int mic_tcp_recv (int socket, char* mesg, int max_mesg_size) //source
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
     pdu.payload.data = mesg;
@@ -118,8 +135,14 @@ int mic_tcp_close (int socket)
  * le buffer de réception du socket. Cette fonction utilise la fonction
  * app_buffer_put().
  */
-void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr)
+void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr) //puit
 {
+    mic_tcp_pdu ack;
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
-    return(app_buffer_put(pdu.payload));
+    if(pdu.header.seq_num == PA){
+        PA=(PA+1)%2;
+        app_buffer_put(pdu.payload);
+    }
+    ack.header.ack_num = PA;
+    IP_send(ack,addr);
 }
