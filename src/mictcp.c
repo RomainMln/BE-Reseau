@@ -8,6 +8,7 @@ mic_tcp_sock_addr addr_dest;
 mic_tcp_pdu pdu;
 short PE = 0;
 short PA =0;
+short msg_passe =0;
 
 /*
  * Permet de créer un socket entre l’application et MIC-TCP
@@ -17,7 +18,7 @@ int mic_tcp_socket(start_mode sm)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
     int result = initialize_components(sm);
-    set_loss_rate(0);
+    set_loss_rate(1);
     if(sm == CLIENT)
     {
         sock_source.fd = result;
@@ -79,6 +80,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
 int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+    int renvoie =0;
     mic_tcp_pdu newPDU;
     int valide = -1;
     int test;
@@ -91,15 +93,23 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
         pdu.payload.size = mesg_size;
         PE=(PE+1)%2;
         while(valide){
+            if((renvoie==1) && (msg_passe>=48)){
+                printf("skip\n");
+                PE=(PE+1)%2;
+                msg_passe=0;
+                return(0);
+            }
             IP_send(pdu,addr_dest);
-            test = IP_recv(&newPDU,&addr_dest,500);
+            test = IP_recv(&newPDU,&addr_dest,100);
             if(test != -1)
             {
                 if(newPDU.header.ack_num == PE){
                     valide = 0;
                 }
             }
+            renvoie=1;
         }
+        msg_passe++;
         return(0);
     }
 }
@@ -137,11 +147,14 @@ int mic_tcp_close (int socket)
  */
 void process_received_PDU(mic_tcp_pdu pdu, mic_tcp_sock_addr addr) //puit
 {
-    mic_tcp_pdu ack;
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
+    mic_tcp_pdu ack;
     if(pdu.header.seq_num == PA){
         PA=(PA+1)%2;
         app_buffer_put(pdu.payload);
+    }
+    else{
+        printf("Pas bon \n");
     }
     ack.header.ack_num = PA;
     IP_send(ack,addr);
