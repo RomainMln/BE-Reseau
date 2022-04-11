@@ -30,6 +30,17 @@ pthread_cond_t buffer_empty_cond;
 /*************************
  * Fonctions Utilitaires *
  *************************/
+
+void * listen_send(void* arg){
+    pthread_mutex_init(&lock, NULL);
+    mic_tcp_payload message;
+    message.data = "";
+    while(1){
+        app_buffer_get(message);
+        mic_tcp_sd(message.data,message.size);
+    }
+}
+
 int initialize_components(start_mode mode)
 {
     int bnd;
@@ -70,6 +81,8 @@ int initialize_components(start_mode mode)
     {
         if(initialized != -1)
         {
+            TAILQ_INIT(&app_buffer_head);
+            pthread_cond_init(&buffer_empty_cond, 0);
             memset((char *) &remote_addr, 0, sizeof(remote_addr));
             remote_addr.sin_family = AF_INET;
             remote_addr.sin_port = htons(API_CS_Port);
@@ -88,7 +101,9 @@ int initialize_components(start_mode mode)
     {
         pthread_create (&listen_th, NULL, listening, "1");
     }
-
+    else if ((initialized == 1) && (mode == CLIENT)){
+        pthread_create (&listen_th, NULL, listen_send,NULL);
+    }
     return initialized;
 }
 
@@ -287,6 +302,36 @@ void app_buffer_put(mic_tcp_payload bf)
 
 
 void* listening(void* arg)
+{
+    mic_tcp_pdu pdu_tmp;
+    int recv_size;
+    mic_tcp_sock_addr remote;
+
+    pthread_mutex_init(&lock, NULL);
+
+    printf("[MICTCP-CORE] Demarrage du thread de reception reseau...\n");
+
+    const int payload_size = 1500 - API_HD_Size;
+    pdu_tmp.payload.size = payload_size;
+    pdu_tmp.payload.data = malloc(payload_size);
+
+
+    while(1)
+    {
+        pdu_tmp.payload.size = payload_size;
+        recv_size = IP_recv(&pdu_tmp, &remote, 0);
+
+        if(recv_size != -1)
+        {
+            process_received_PDU(pdu_tmp, remote);
+        } else {
+            /* This should never happen */
+            printf("Error in recv\n");
+        }
+    }
+}
+
+void* listening_homemade(void* arg)
 {
     mic_tcp_pdu pdu_tmp;
     int recv_size;
