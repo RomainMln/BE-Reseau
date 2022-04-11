@@ -94,6 +94,7 @@ typedef struct app_buffer
  * Fonctions de l'interface *
  ****************************/
 int mic_tcp_socket(start_mode sm);
+int mic_tcp_sd (char* mesg, int mesg_size);
 int mic_tcp_bind(int socket, mic_tcp_sock_addr addr);
 int mic_tcp_accept(int socket, mic_tcp_sock_addr* addr);
 int mic_tcp_connect(int socket, mic_tcp_sock_addr addr);

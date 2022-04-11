@@ -41,8 +41,13 @@ void * reception(){
 int mic_tcp_socket(start_mode sm)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
+<<<<<<< HEAD
     int result = initialize_components(sm); // initialize_components ne crée pas de thread il s'occupe juste du bind
     set_loss_rate(20);
+=======
+    int result = initialize_components(sm);
+    set_loss_rate(0);
+>>>>>>> main
     if(sm == CLIENT)
     {
         sock_source.fd = result;
@@ -133,12 +138,19 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     sock_source.state = ESTABLISHED;
     return(0);
 }
-
-/*
- * Permet de réclamer l’envoi d’une donnée applicative
- * Retourne la taille des données envoyées, et -1 en cas d'erreur
- */
 int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
+{
+    mic_tcp_payload donnees;
+    if(mic_sock != sock_source.fd){
+        return(-1);
+    }
+    donnees.data = mesg;
+    donnees.size = mesg_size;
+    app_buffer_put(donnees);
+    return(0);
+}
+
+int mic_tcp_sd (char* mesg, int mesg_size)
 {
     printf("[MIC-TCP] Appel de la fonction: "); printf(__FUNCTION__); printf("\n");
     int renvoie =0;
@@ -146,43 +158,44 @@ int mic_tcp_send (int mic_sock, char* mesg, int mesg_size)
     mic_tcp_pdu NPDU;
     int valide = -1;
     int test;
-    if(mic_sock != sock_source.fd){
-        return(-1);
-    }
-    else{
-        NPDU.header.seq_num = PE;
-        NPDU.header.ack = 0;
-        NPDU.header.syn = 0;
-        NPDU.header.ack_num = 0;
-        NPDU.payload.data = mesg;
-        NPDU.payload.size = mesg_size;
-        PE=(PE+1)%2;
-        while(valide){
-            //printf("Coucou\n");
-            if((renvoie==1) && (msg_passe>=msg_conseq)){
-                PE=(PE+1)%2;
-                msg_passe=0;
-                return(0);
-            }
-            IP_send(NPDU,addr_dest);
-            test = IP_recv(&newPDU,&addr_dest,500);
-            if(test != -1)
-            {
-                if((newPDU.header.ack == 1) && (newPDU.header.syn == 1)){
-                    NPDU.header.ack = 1;
-                    printf("Hey\n");
-                    IP_send(NPDU,addr_dest);
-                }
-                else if(newPDU.header.ack_num == PE){
-                    valide = 0;
-                }
-            }
-            renvoie=1;
+    NPDU.header.seq_num = PE;
+    NPDU.header.ack = 0;
+    NPDU.header.syn = 0;
+    NPDU.header.ack_num = 0;
+    NPDU.payload.data = mesg;
+    NPDU.payload.size = mesg_size;
+    PE=(PE+1)%2;
+    while(valide){
+        if((renvoie==1) && (msg_passe>=msg_conseq)){
+            PE=(PE+1)%2;
+            msg_passe=0;
+            return(0);
         }
-        msg_passe++;
-        return(0);
+        IP_send(NPDU,addr_dest);
+        test = IP_recv(&newPDU,&addr_dest,500);
+        if(test != -1)
+        {
+            printf("wesh\n");
+            if((newPDU.header.ack == 1) && (newPDU.header.syn == 1)){
+                NPDU.header.ack = 1;
+                IP_send(NPDU,addr_dest);
+                printf("Bonjour\n");
+            }
+            else if(newPDU.header.ack_num == PE){
+                valide = 0;
+                printf("coucou\n");
+            }
+        }
+        renvoie=1;
     }
+    msg_passe++;
+    return(0);
 }
+/*
+ * Permet de réclamer l’envoi d’une donnée applicative
+ * Retourne la taille des données envoyées, et -1 en cas d'erreur
+ */
+
 
 /*
  * Permet à l’application réceptrice de réclamer la récupération d’une donnée
