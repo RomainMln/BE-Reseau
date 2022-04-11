@@ -84,10 +84,10 @@ int initialize_components(start_mode mode)
         }
     }
 
-    if((initialized == 1) && (mode == SERVER))
-    {
-        pthread_create (&listen_th, NULL, listening, "1");
-    }
+    //if((initialized == 1) && (mode == SERVER))
+    //{
+    //    pthread_create (&listen_th, NULL, listening, "1");
+    //}
 
     return initialized;
 }

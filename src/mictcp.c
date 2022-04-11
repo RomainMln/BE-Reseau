@@ -4,12 +4,14 @@
 
 mic_tcp_sock sock_source;
 mic_tcp_sock sock_puit;
-mic_tcp_sock_addr addr_dest;
+mic_tcp_sock_addr addr_dest = {0};
 
 short PE = 0;
 short PA =0;
 short msg_passe =0;
 short msg_conseq = 4;
+
+pthread_t thread_reception;
 
 pthread_cond_t wait = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -18,10 +20,28 @@ pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
  * Permet de créer un socket entre l’application et MIC-TCP
  * Retourne le descripteur du socket ou bien -1 en cas d'erreur
  */
+
+void * reception(){
+    mic_tcp_pdu recu;
+    recu.payload.size = 1485;
+    recu.payload.data = malloc(recu.payload.size);
+    int test;
+    while(1){
+        recu.payload.size = 1485;
+        test = IP_recv(&recu, &addr_dest, 0);
+        if(test != -1){
+            process_received_PDU(recu,addr_dest);
+        }
+        else{
+            printf("Erreur de reception\n");
+        }
+    }
+}
+
 int mic_tcp_socket(start_mode sm)
 {
     printf("[MIC-TCP] Appel de la fonction: ");  printf(__FUNCTION__); printf("\n");
-    int result = initialize_components(sm);
+    int result = initialize_components(sm); // initialize_components ne crée pas de thread il s'occupe juste du bind
     set_loss_rate(20);
     if(sm == CLIENT)
     {
@@ -30,9 +50,12 @@ int mic_tcp_socket(start_mode sm)
     else
     {
         sock_puit.fd = result;
+        pthread_create(&thread_reception, NULL, reception, NULL);
     }
     return result;
 }
+
+
 
 /*
  * Permet d’attribuer une adresse à un socket.
@@ -104,7 +127,7 @@ int mic_tcp_connect(int socket, mic_tcp_sock_addr addr)
     AckC.header.seq_num = 0; 
     AckC.header.ack_num = 0; 
   
-    AckC.payload.data = NULL;
+    AckC.payload.data = "";
     AckC.payload.size = 0;
     IP_send(AckC,addr);
     sock_source.state = ESTABLISHED;
